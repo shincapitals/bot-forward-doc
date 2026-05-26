@@ -1,0 +1,9 @@
+node_modules/
+dist/
+logs/
+.env
+service_account.json
+data/
+*.log
+*.txt
+avatar-*.png
