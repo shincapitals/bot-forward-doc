@@ -85,7 +85,11 @@ Both `TELEGRAM_BOT_TOKEN` and `VERTEX_KEY_API_KEY` are validated on startup — 
 All logic is in `bot.on('message:text')` and `bot.on('message:photo')` handlers in `index.ts`. Message routing uses **regex matching + keyword detection** in this priority order:
 
 1. **Doc management**: `Add Doc <alias> <id>`, `Use Doc <alias>`, `Current Doc`
-2. **To-do**: `Add Task: <text>`, `List Tasks`, `Complete Task: <index|keyword>`
+2. **To-Do List**: Quick task management via `Add Task: [content]` and `List Tasks`.
+- **Shopee Tracker**: Monitor prices and get alerted before Flash Sales. Commands:
+  - `Track Shopee <link>` or `Theo dõi <link>`
+  - `/shopee` or `shopee list`
+  - `Untrack Shopee <index>`
 3. **Calendar**: Messages containing "schedule", "meeting", or "remind" → AI extracts event data → Calendar API
 4. **Personalization**: `Call me <name>`, `My name is <name>`, `My job is <job>`, `Remember: <note>`
 5. **Save to Docs**: `Save: <content>` command OR forwarded messages → appends text to active Google Doc

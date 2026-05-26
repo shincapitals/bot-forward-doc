@@ -7,12 +7,14 @@ import fs from 'fs';
 import https from 'https';
 
 import { TodoService } from './services/todo.service';
+import { ShopeeService } from './services/shopee.service';
 
 const bot = new Bot(config.telegramBotToken);
 const aiService = new AIService();
 const googleService = new GoogleService();
 const todoService = new TodoService();
 const userService = new UserService();
+const shopeeService = new ShopeeService(bot);
 
 // Basic Command Handlers
 bot.command('start', (ctx) => ctx.reply('Hello! I am your AI Assistant. How can I help you?'));
@@ -32,7 +34,11 @@ bot.command('help', (ctx) => {
         '  + "List Tasks" (view list)\n' +
         '  + "Complete Task: <index or keyword>"\n' +
         '- Save Notes (Type: "Save: <content>" or Forward message -> Docs)\n' +
-        '- Save Photos (Send photo with caption "Save" or Forward photo -> Docs)'
+        '- Save Photos (Send photo with caption "Save" or Forward photo -> Docs)\n' +
+        '- Shopee Tracker:\n' +
+        '  + "Track Shopee <link>" (Theo dõi giá/deal)\n' +
+        '  + "/shopee" (Xem danh sách)\n' +
+        '  + "Untrack Shopee <số thứ tự>"'
     );
 });
 
@@ -119,6 +125,41 @@ bot.on('message:text', async (ctx) => {
         }
     }
     // ---------------------------
+
+    // --- SHOPEE TRACKER COMMANDS ---
+    const trackMatch = text.match(/^(?:track shopee|theo dõi)\s+(https?:\/\/\S+)/i);
+    if (trackMatch) {
+        const url = trackMatch[1];
+        const response = await shopeeService.trackItem(userId, url);
+        await ctx.reply(response, { parse_mode: 'Markdown' });
+        return;
+    }
+
+    if (text.toLowerCase() === '/shopee' || text.toLowerCase() === 'shopee list') {
+        const items = shopeeService.getTrackedItems(userId);
+        if (items.length === 0) {
+            await ctx.reply('Bạn chưa theo dõi sản phẩm Shopee nào.');
+        } else {
+            const list = items.map((i, idx) => {
+                const price = i.lastPrice ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(i.lastPrice) : 'N/A';
+                return `${idx + 1}. [${i.name}](${i.url}) - ${price}`;
+            }).join('\n');
+            await ctx.reply(`Danh sách theo dõi Shopee:\n${list}`, { parse_mode: 'Markdown', link_preview_options: { is_disabled: true } });
+        }
+        return;
+    }
+
+    const untrackMatch = text.match(/^untrack shopee\s+(\d+)/i);
+    if (untrackMatch) {
+        const index = parseInt(untrackMatch[1]);
+        if (shopeeService.untrackItem(userId, index)) {
+            await ctx.reply(`✅ Đã xóa sản phẩm số ${index} khỏi danh sách theo dõi.`);
+        } else {
+            await ctx.reply('⚠️ Số thứ tự không hợp lệ. Vui lòng xem lại danh sách bằng lệnh /shopee.');
+        }
+        return;
+    }
+    // -------------------------------
 
     // 1. Check if user wants to schedule something
     if (text.toLowerCase().includes('schedule') || text.toLowerCase().includes('meeting') || text.toLowerCase().includes('remind')) {
