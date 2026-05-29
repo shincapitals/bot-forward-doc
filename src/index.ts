@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, InlineKeyboard } from 'grammy';
 import { config } from './config';
 import { AIService } from './services/ai.service';
 import { GoogleService } from './services/google.service';
@@ -7,6 +7,8 @@ import { TodoService } from './services/todo.service';
 import { ShopeeService } from './services/shopee.service';
 import { ResearchService } from './services/research.service';
 import { PlanService } from './services/plan.service';
+import { PaymentService } from './services/payment.service';
+import { startWebhookServer } from './webhook.server';
 import fs from 'fs';
 import https from 'https';
 import cron from 'node-cron';
@@ -19,6 +21,7 @@ const userService = new UserService();
 const shopeeService = new ShopeeService(bot);
 const researchService = new ResearchService();
 const planService = new PlanService();
+const paymentService = new PaymentService(planService);
 
 // Basic Command Handlers
 bot.command('start', (ctx) => ctx.reply('Hello! I am your AI Assistant & Research OS. How can I help you?'));
@@ -51,7 +54,9 @@ bot.command('help', (ctx) => {
         '  + "Stats" — thống kê research\n' +
         '  + "Starred" — xem bookmarks\n' +
         '  + "Ask: <question>" — hỏi AI về research\n' +
-        '  + "/plan" — xem plan hiện tại'
+        '  + "/plan" — xem plan hiện tại\n' +
+        '\n💳 Subscription:\n' +
+        '  + "/upgrade" — nâng cấp lên Pro/Premium'
     );
 });
 
@@ -560,10 +565,89 @@ cron.schedule('0 8 * * *', async () => {
     timezone: 'Asia/Ho_Chi_Minh',
 });
 
+// --- /upgrade command ---
+bot.command('upgrade', async (ctx) => {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    const plan = planService.getPlan(userId);
+
+    if (!config.lsApiKey) {
+        await ctx.reply('⚠️ Tính năng thanh toán chưa được kích hoạt. Vui lòng liên hệ admin.');
+        return;
+    }
+
+    if (plan.tier === 'premium') {
+        await ctx.reply('💎 Bạn đang dùng Premium — plan cao nhất! Cảm ơn đã ủng hộ 🙏');
+        return;
+    }
+
+    const keyboard = new InlineKeyboard()
+        .text('⭐ Pro — $9.99/tháng', 'upgrade_pro')
+        .row()
+        .text('💎 Premium — $24.99/tháng', 'upgrade_premium');
+
+    const currentTierText = plan.tier === 'pro'
+        ? 'Bạn đang dùng ⭐ Pro. Upgrade lên 💎 Premium để mở khoá Sentiment & Export.'
+        : 'Chọn plan muốn nâng cấp:';
+
+    await ctx.reply(
+        `💳 Nâng cấp Research OS\n\n${currentTierText}\n\n` +
+        `⭐ Pro ($9.99/tháng):\n• Unlimited forwards\n• Search & Tag\n• Daily Digest\n• Ask AI\n\n` +
+        `💎 Premium ($24.99/tháng):\n• Tất cả Pro features\n• Sentiment scoring\n• Export research\n• Unlimited Docs`,
+        { reply_markup: keyboard }
+    );
+});
+
+// Handle upgrade inline keyboard callbacks
+bot.callbackQuery('upgrade_pro', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    await ctx.reply('⏳ Đang tạo link thanh toán...');
+    const url = await paymentService.createCheckoutLink(userId, 'pro');
+
+    if (!url) {
+        await ctx.reply('❌ Không thể tạo link thanh toán. Vui lòng thử lại sau hoặc liên hệ admin.');
+        return;
+    }
+
+    await ctx.reply(
+        `⭐ Link thanh toán Pro ($9.99/tháng):\n\n${url}\n\n` +
+        `⏰ Link có hiệu lực trong 30 phút.\n` +
+        `Sau khi thanh toán, plan sẽ tự động cập nhật! 🚀`
+    );
+});
+
+bot.callbackQuery('upgrade_premium', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    await ctx.reply('⏳ Đang tạo link thanh toán...');
+    const url = await paymentService.createCheckoutLink(userId, 'premium');
+
+    if (!url) {
+        await ctx.reply('❌ Không thể tạo link thanh toán. Vui lòng thử lại sau hoặc liên hệ admin.');
+        return;
+    }
+
+    await ctx.reply(
+        `💎 Link thanh toán Premium ($24.99/tháng):\n\n${url}\n\n` +
+        `⏰ Link có hiệu lực trong 30 phút.\n` +
+        `Sau khi thanh toán, plan sẽ tự động cập nhật! 🚀`
+    );
+});
+
+// Start webhook server (runs alongside bot polling)
+startWebhookServer(paymentService, bot);
+
 // Start the bot
 bot.start({
     onStart: (botInfo) => {
         console.log(`Bot @${botInfo.username} started!`);
         console.log('Research OS features enabled: auto-tag, search, digest, star, stats');
+        console.log('Payment: /upgrade command enabled' + (config.lsApiKey ? '' : ' (⚠️ LS keys not set)'));
     },
 });

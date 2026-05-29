@@ -10,6 +10,14 @@ export const config = {
     googleCredentials: process.env.GOOGLE_APPLICATION_CREDENTIALS || '',
     googleDocId: process.env.GOOGLE_DOC_ID || '',
     googleDriveFolderId: process.env.GOOGLE_DRIVE_FOLDER_ID || '', // Required for Service Account uploads
+
+    // --- LemonSqueezy Payment ---
+    lsApiKey: process.env.LEMONSQUEEZY_API_KEY || '',
+    lsStoreId: process.env.LEMONSQUEEZY_STORE_ID || '',
+    lsProVariantId: process.env.LEMONSQUEEZY_PRO_VARIANT_ID || '',
+    lsPremiumVariantId: process.env.LEMONSQUEEZY_PREMIUM_VARIANT_ID || '',
+    lsWebhookSecret: process.env.LEMONSQUEEZY_WEBHOOK_SECRET || '',
+    webhookPort: parseInt(process.env.WEBHOOK_PORT || '3000', 10),
 };
 
 
@@ -21,5 +29,9 @@ if (!config.telegramBotToken) {
 if (!config.vertexKeyApiKey) {
     console.error('Missing VERTEX_KEY_API_KEY in .env');
     process.exit(1);
+}
+
+if (!config.lsApiKey) {
+    console.warn('⚠️  LEMONSQUEEZY_API_KEY not set — /upgrade command will be disabled.');
 }
 

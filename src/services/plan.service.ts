@@ -11,6 +11,7 @@ export interface UserPlan {
     expiresAt?: string;         // ISO string — undefined = never expires (for free)
     dailyForwardCount: number;  // Reset daily
     lastResetDate: string;      // YYYY-MM-DD
+    lsOrderId?: string;         // LemonSqueezy order ID for idempotency
 }
 
 // --- Feature gates ---
@@ -176,8 +177,9 @@ export class PlanService {
 
     /**
      * Upgrade a user's plan.
+     * @param orderId — Optional LemonSqueezy order ID to store for idempotency.
      */
-    upgradePlan(userId: number, tier: PlanTier, durationDays?: number) {
+    upgradePlan(userId: number, tier: PlanTier, durationDays?: number, orderId?: string) {
         const plan = this.getPlan(userId);
         plan.tier = tier;
         if (durationDays) {
@@ -186,6 +188,9 @@ export class PlanService {
             plan.expiresAt = expires.toISOString();
         } else {
             plan.expiresAt = undefined;
+        }
+        if (orderId) {
+            plan.lsOrderId = orderId;
         }
         this.saveData();
     }
@@ -230,6 +235,12 @@ export class PlanService {
         if (plan.expiresAt) {
             const expDate = new Date(plan.expiresAt).toLocaleDateString('vi-VN');
             info += `\n⏰ Hết hạn: ${expDate}`;
+        } else if (plan.tier !== 'free') {
+            info += `\n♾️ Không giới hạn thời gian`;
+        }
+
+        if (plan.tier === 'free') {
+            info += `\n\n💡 Upgrade để mở khoá Search, Digest và nhiều hơn nữa!\n👉 Gõ /upgrade để xem các gói`;
         }
 
         return info;
