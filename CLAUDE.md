@@ -25,6 +25,8 @@ bot-forward-docs/
 ├── package.json
 ├── tsconfig.json
 ├── nodemon.json
+├── PLAN.md                     # Product & monetization roadmap
+├── SHOPEE_PLAN.md              # Shopee tracker feature notes
 ├── data/
 │   ├── users.json              # Persisted user profiles & doc aliases
 │   ├── todos.json              # Persisted to-do items (created at runtime)
@@ -33,11 +35,14 @@ bot-forward-docs/
 ├── src/
 │   ├── config.ts               # Loads env vars, validates required keys
 │   ├── index.ts                # Entry point — bot commands, message handlers, cron jobs
+│   ├── webhook.server.ts       # Express HTTP server for LemonSqueezy payment webhooks
 │   ├── services/
 │   │   ├── ai.service.ts       # AI chat, calendar analysis, digest generation, research Q&A
 │   │   ├── google.service.ts   # Calendar, Drive, Docs API wrappers
+│   │   ├── payment.service.ts  # LemonSqueezy checkout creation, HMAC verify, upgrade logic
 │   │   ├── plan.service.ts     # Subscription tier tracking & feature gating
 │   │   ├── research.service.ts # Research items: auto-tagging, search, star, digest data
+│   │   ├── shopee.service.ts   # Shopee price tracker & flash sale notifier
 │   │   ├── todo.service.ts     # File-based to-do CRUD per user
 │   │   └── user.service.ts     # File-based user profile management & doc aliases
 │   ├── utils/                  # (empty — reserved for future utilities)
@@ -75,12 +80,20 @@ npx ts-node src/test-drive.ts
 | `TELEGRAM_BOT_TOKEN`          | ✅       | Telegram Bot API token                   |
 | `VERTEX_KEY_API_KEY`          | ✅       | API key from vertex-key.com              |
 | `VERTEX_KEY_BASE_URL`         | Optional | API base URL (default: `https://vertex-key.com/api/v1`) |
-| `AI_MODEL`                    | Optional | Model ID (default: `aws/claude-haiku-4-5`) |
+| `AI_CHAT_MODEL`               | Optional | Chat model ID (default: `aws/claude-sonnet-4-6`) |
+| `AI_FAST_MODEL`               | Optional | Fast model ID (default: `aws/claude-haiku-4-5`) |
 | `GOOGLE_APPLICATION_CREDENTIALS` | ✅    | Path to Service Account JSON file        |
 | `GOOGLE_DOC_ID`               | Optional | Default Google Doc ID for saving content |
 | `GOOGLE_DRIVE_FOLDER_ID`      | Optional | Drive folder for photo uploads           |
+| `LEMONSQUEEZY_API_KEY`        | Optional | LS API key — required to enable `/upgrade` |
+| `LEMONSQUEEZY_STORE_ID`       | Optional | LS Store ID                              |
+| `LEMONSQUEEZY_PRO_VARIANT_ID` | Optional | LS Variant ID for Pro plan               |
+| `LEMONSQUEEZY_PREMIUM_VARIANT_ID` | Optional | LS Variant ID for Premium plan       |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` | Optional | Webhook signing secret for HMAC verify   |
+| `WEBHOOK_PORT`                | Optional | Port for webhook Express server (default: `3000`) |
 
 Both `TELEGRAM_BOT_TOKEN` and `VERTEX_KEY_API_KEY` are validated on startup — app exits if missing.
+LemonSqueezy keys are optional; if absent, the `/upgrade` command shows a "not configured" message.
 
 ## Architecture & Key Patterns
 
@@ -154,10 +167,19 @@ All data is stored as JSON files in `data/`. Read on service init, written synch
 
 ## Important Conventions
 
+### Git Workflow
+
+**Dự án solo — không cần tạo Pull Request.**
+- Commit thẳng lên `main` cho các thay đổi nhỏ.
+- Dùng feature branch (e.g., `sprint-2a-payment`) khi làm sprint lớn, sau đó merge trực tiếp vào `main` sau khi build pass.
+- Không cần code review hay PR approval.
+
+### Other Conventions
+
 - **Language**: Bot responses mix English and Vietnamese (error messages in Vietnamese in `ai.service.ts`).
 - **Markdown handling**: AI responses have `*`, `#`, and `_` stripped/escaped before sending to Telegram (parsed as Markdown mode).
 - **No tests**: No automated test suite. Only manual test scripts in `src/test-*.ts`.
-- **No `.gitignore` visible**: Ensure `node_modules/`, `dist/`, `.env`, `service_account.json`, and `data/` are gitignored.
+- **Gitignore**: `node_modules/`, `dist/`, `.env`, `service_account.json`, and `data/` are gitignored.
 - **Type safety**: `strict: true` in tsconfig, but some `@ts-ignore` and `any` casts exist (especially in AI service and Google service).
 
 ## Common Tasks
