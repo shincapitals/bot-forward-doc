@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Telegram Bot** that acts as a personal AI assistant, integrating **AI chat via Vertex-Key.com** (OpenAI-compatible API), **Google Docs** for saving notes/images, **Google Calendar** for scheduling, and a local **To-Do list**. Built with **TypeScript**, uses the **grammY** framework for Telegram Bot API.
+**Telegram Bot** that acts as a personal AI assistant and **Research OS for traders/investors**. Integrates **AI chat via Vertex-Key.com** (OpenAI-compatible API), **Google Docs** for saving notes/images, **Google Calendar** for scheduling, a local **To-Do list**, and a **smart research management system** with auto-tagging, search, digest, and subscription tiers. Built with **TypeScript**, uses the **grammY** framework for Telegram Bot API.
 
 ## Tech Stack
 
@@ -27,13 +27,17 @@ bot-forward-docs/
 ├── nodemon.json
 ├── data/
 │   ├── users.json              # Persisted user profiles & doc aliases
-│   └── todos.json              # Persisted to-do items (created at runtime)
+│   ├── todos.json              # Persisted to-do items (created at runtime)
+│   ├── research.json           # Research items with tags, sentiment (created at runtime)
+│   └── plans.json              # User subscription plans (created at runtime)
 ├── src/
 │   ├── config.ts               # Loads env vars, validates required keys
-│   ├── index.ts                # Entry point — bot commands & message handlers
+│   ├── index.ts                # Entry point — bot commands, message handlers, cron jobs
 │   ├── services/
-│   │   ├── ai.service.ts       # AI chat via Vertex-Key (OpenAI SDK), calendar analysis
+│   │   ├── ai.service.ts       # AI chat, calendar analysis, digest generation, research Q&A
 │   │   ├── google.service.ts   # Calendar, Drive, Docs API wrappers
+│   │   ├── plan.service.ts     # Subscription tier tracking & feature gating
+│   │   ├── research.service.ts # Research items: auto-tagging, search, star, digest data
 │   │   ├── todo.service.ts     # File-based to-do CRUD per user
 │   │   └── user.service.ts     # File-based user profile management & doc aliases
 │   ├── utils/                  # (empty — reserved for future utilities)
@@ -86,14 +90,23 @@ All logic is in `bot.on('message:text')` and `bot.on('message:photo')` handlers 
 
 1. **Doc management**: `Add Doc <alias> <id>`, `Use Doc <alias>`, `Current Doc`
 2. **To-Do List**: Quick task management via `Add Task: [content]` and `List Tasks`.
-- **Shopee Tracker**: Monitor prices and get alerted before Flash Sales. Commands:
-  - `Track Shopee <link>` or `Theo dõi <link>`
-  - `/shopee` or `shopee list`
-  - `Untrack Shopee <index>`
-3. **Calendar**: Messages containing "schedule", "meeting", or "remind" → AI extracts event data → Calendar API
-4. **Personalization**: `Call me <name>`, `My name is <name>`, `My job is <job>`, `Remember: <note>`
-5. **Save to Docs**: `Save: <content>` command OR forwarded messages → appends text to active Google Doc
-6. **Default**: Falls through to AI chat with per-user session
+   - **Shopee Tracker**: Monitor prices and get alerted before Flash Sales. Commands:
+   - `Track Shopee <link>` or `Theo dõi <link>`
+   - `/shopee` or `shopee list`
+   - `Untrack Shopee <index>`
+3. **Research OS commands** (new):
+   - `Search: <keyword>` — full-text search in saved research (Pro)
+   - `Tag: <ticker>` — filter by ticker symbol (Pro)
+   - `Digest` / `Daily Digest` — AI-generated daily summary (Pro)
+   - `Stats` — research statistics and top tickers
+   - `Starred` / `Bookmarks` — view bookmarked items
+   - `Star` / `⭐` — bookmark the most recent research item
+   - `Ask: <question>` — AI answers questions about your saved research (Pro)
+   - `/plan` / `My Plan` — view current subscription plan and limits
+4. **Calendar**: Messages containing "schedule", "meeting", or "remind" → AI extracts event data → Calendar API
+5. **Personalization**: `Call me <name>`, `My name is <name>`, `My job is <job>`, `Remember: <note>`
+6. **Save to Docs + Research**: `Save: <content>` command OR forwarded messages → auto-tags tickers, classifies category, scores sentiment, saves to Research DB + appends to active Google Doc
+7. **Default**: Falls through to AI chat with per-user session
 
 ### Photo Handler
 
@@ -105,10 +118,33 @@ Reacts with ❤ emoji on success (falls back to text reply if reactions aren't s
 
 ### Service Layer
 
-- **AIService**: Uses OpenAI SDK (`openai` package) with Vertex-Key.com as base URL. Manages per-user conversation history (messages array) with personalized system instructions. History is in-memory (Map, max 50 messages), not persisted. Post-processes responses to strip markdown formatting (bold, headers) and escape underscores.
+- **AIService**: Uses OpenAI SDK (`openai` package) with Vertex-Key.com as base URL. Manages per-user conversation history (messages array) with personalized system instructions. History is in-memory (Map, max 50 messages), not persisted. Post-processes responses to strip markdown formatting (bold, headers) and escape underscores. Also provides `generateDigest()` and `askAboutResearch()` for the Research OS.
 - **GoogleService**: Thin wrappers around Google APIs. Uses Service Account auth. Calendar defaults to `Asia/Ho_Chi_Minh` timezone.
+- **ResearchService** *(new)*: File-based persistence to `data/research.json`. Manages research items with auto-tagging (tickers via regex), category classification (keyword-based), sentiment scoring (rule-based), search (by keyword/ticker/category), star/bookmark, and digest data aggregation.
+- **PlanService** *(new)*: File-based persistence to `data/plans.json`. Manages subscription tiers (free/pro/premium), daily forward rate limiting, feature gating, and plan expiration.
 - **UserService**: File-based persistence to `data/users.json`. Supports multi-doc aliases (e.g., `work` → `<docId>`). Auto-sets first added doc as active.
 - **TodoService**: File-based persistence to `data/todos.json`. Supports completion by index (1-based) or keyword search.
+
+### Subscription Tiers
+
+| Feature | Free | Pro ($9.99/mo) | Premium ($24.99/mo) |
+|---|---|---|---|
+| Forwards/day | 10 | Unlimited | Unlimited |
+| Search & Tag | ❌ | ✅ | ✅ |
+| Daily Digest | ❌ | ✅ | ✅ |
+| Star/Bookmark | ✅ | ✅ | ✅ |
+| Sentiment | ❌ | ❌ | ✅ |
+| Export | ❌ | ❌ | ✅ |
+| Max Docs | 1 | 5 | Unlimited |
+
+### Daily Digest Cron
+
+A `node-cron` job runs at **08:00 daily (Asia/Ho_Chi_Minh)** that:
+1. Gathers research items from the last 24 hours per user
+2. Groups by ticker, calculates sentiment
+3. Generates AI-powered summary via `AIService.generateDigest()`
+4. Sends formatted digest to each eligible user via Telegram
+5. Checks and downgrades expired subscription plans
 
 ### Data Persistence
 

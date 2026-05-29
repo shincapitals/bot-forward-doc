@@ -3,11 +3,13 @@ import { config } from './config';
 import { AIService } from './services/ai.service';
 import { GoogleService } from './services/google.service';
 import { UserService } from './services/user.service';
-import fs from 'fs';
-import https from 'https';
-
 import { TodoService } from './services/todo.service';
 import { ShopeeService } from './services/shopee.service';
+import { ResearchService } from './services/research.service';
+import { PlanService } from './services/plan.service';
+import fs from 'fs';
+import https from 'https';
+import cron from 'node-cron';
 
 const bot = new Bot(config.telegramBotToken);
 const aiService = new AIService();
@@ -15,9 +17,11 @@ const googleService = new GoogleService();
 const todoService = new TodoService();
 const userService = new UserService();
 const shopeeService = new ShopeeService(bot);
+const researchService = new ResearchService();
+const planService = new PlanService();
 
 // Basic Command Handlers
-bot.command('start', (ctx) => ctx.reply('Hello! I am your AI Assistant. How can I help you?'));
+bot.command('start', (ctx) => ctx.reply('Hello! I am your AI Assistant & Research OS. How can I help you?'));
 
 bot.command('help', (ctx) => {
     ctx.reply(
@@ -38,7 +42,16 @@ bot.command('help', (ctx) => {
         '- Shopee Tracker:\n' +
         '  + "Track Shopee <link>" (Theo dõi giá/deal)\n' +
         '  + "/shopee" (Xem danh sách)\n' +
-        '  + "Untrack Shopee <số thứ tự>"'
+        '  + "Untrack Shopee <số thứ tự>"\n' +
+        '\n📊 Research OS:\n' +
+        '  + Forward messages → auto-tag tickers\n' +
+        '  + "Search: <keyword>" — tìm research\n' +
+        '  + "Tag: <ticker>" — xem theo ticker\n' +
+        '  + "Digest" — xem daily digest\n' +
+        '  + "Stats" — thống kê research\n' +
+        '  + "Starred" — xem bookmarks\n' +
+        '  + "Ask: <question>" — hỏi AI về research\n' +
+        '  + "/plan" — xem plan hiện tại'
     );
 });
 
@@ -161,6 +174,159 @@ bot.on('message:text', async (ctx) => {
     }
     // -------------------------------
 
+    // --- RESEARCH OS COMMANDS ---
+
+    // "Search: <keyword>" — search saved research
+    if (text.toLowerCase().startsWith('search:')) {
+        const keyword = text.substring(7).trim();
+        if (!keyword) {
+            await ctx.reply('⚠️ Vui lòng nhập keyword. Ví dụ: Search: BTC');
+            return;
+        }
+
+        // Check plan
+        if (!planService.canUse(userId, 'canSearch')) {
+            await ctx.reply('🔒 Search là tính năng Pro. Nâng cấp để sử dụng!\n\nGõ /plan để xem chi tiết.');
+            return;
+        }
+
+        const results = researchService.searchByKeyword(userId, keyword);
+        if (results.length === 0) {
+            await ctx.reply(`🔍 Không tìm thấy research nào chứa "${keyword}".`);
+        } else {
+            const display = results.slice(-10).map((item, idx) => {
+                const date = new Date(item.createdAt).toLocaleDateString('vi-VN');
+                const star = item.isStarred ? '⭐ ' : '';
+                const tickers = item.tickers.length > 0 ? ` [${item.tickers.join(', ')}]` : '';
+                const source = item.sourceName ? ` (${item.sourceName})` : '';
+                return `${star}${idx + 1}. ${date}${source}${tickers}\n   ${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}`;
+            }).join('\n\n');
+            await ctx.reply(`🔍 Tìm thấy ${results.length} kết quả cho "${keyword}":\n\n${display}`);
+        }
+        return;
+    }
+
+    // "Tag: <ticker>" — find all research for a ticker
+    if (text.toLowerCase().startsWith('tag:')) {
+        const ticker = text.substring(4).trim().toUpperCase();
+        if (!ticker) {
+            await ctx.reply('⚠️ Vui lòng nhập ticker. Ví dụ: Tag: BTC');
+            return;
+        }
+
+        if (!planService.canUse(userId, 'canSearch')) {
+            await ctx.reply('🔒 Search/Tag là tính năng Pro. Nâng cấp để sử dụng!\n\nGõ /plan để xem chi tiết.');
+            return;
+        }
+
+        const results = researchService.searchByTicker(userId, ticker);
+        if (results.length === 0) {
+            await ctx.reply(`🏷️ Không có research nào tagged ${ticker}.`);
+        } else {
+            const display = results.slice(-10).map((item, idx) => {
+                const date = new Date(item.createdAt).toLocaleDateString('vi-VN');
+                const star = item.isStarred ? '⭐ ' : '';
+                const sentiment = item.sentiment > 0.2 ? '🟢' : item.sentiment < -0.2 ? '🔴' : '🟡';
+                const source = item.sourceName ? ` (${item.sourceName})` : '';
+                return `${star}${sentiment} ${idx + 1}. ${date}${source}\n   ${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}`;
+            }).join('\n\n');
+            await ctx.reply(`🏷️ ${ticker} — ${results.length} research items:\n\n${display}`);
+        }
+        return;
+    }
+
+    // "Digest" — manually trigger daily digest
+    if (text.toLowerCase() === 'digest' || text.toLowerCase() === 'daily digest') {
+        if (!planService.canUse(userId, 'canDigest')) {
+            await ctx.reply('🔒 Daily Digest là tính năng Pro. Nâng cấp để sử dụng!\n\nGõ /plan để xem chi tiết.');
+            return;
+        }
+
+        await ctx.replyWithChatAction('typing');
+        const digestData = researchService.getDigestData(userId, 24);
+        const digest = await aiService.generateDigest(digestData);
+        await ctx.reply(digest);
+        return;
+    }
+
+    // "Stats" — research stats
+    if (text.toLowerCase() === 'stats' || text.toLowerCase() === 'research stats') {
+        const stats = researchService.getStats(userId);
+        if (stats.totalItems === 0) {
+            await ctx.reply('📊 Chưa có research nào. Forward messages vào bot để bắt đầu!');
+            return;
+        }
+
+        const topTickers = stats.topTickers.slice(0, 5).map(t => `  ${t.ticker}: ${t.count}`).join('\n');
+        await ctx.reply(
+            `📊 Research Stats\n\n` +
+            `📦 Tổng: ${stats.totalItems} items\n` +
+            `⭐ Starred: ${stats.starredCount}\n` +
+            `📅 Hôm nay: ${stats.todayCount}\n` +
+            `📅 Tuần này: ${stats.thisWeekCount}\n\n` +
+            `🔥 Top Tickers:\n${topTickers || '  (chưa có)'}`
+        );
+        return;
+    }
+
+    // "Starred" — view starred/bookmarked items
+    if (text.toLowerCase() === 'starred' || text.toLowerCase() === 'bookmarks') {
+        const starred = researchService.getStarredItems(userId);
+        if (starred.length === 0) {
+            await ctx.reply('⭐ Chưa có bookmark nào. Reply ⭐ hoặc gõ "Star" để bookmark research gần nhất.');
+            return;
+        }
+
+        const display = starred.slice(-10).map((item, idx) => {
+            const date = new Date(item.createdAt).toLocaleDateString('vi-VN');
+            const tickers = item.tickers.length > 0 ? ` [${item.tickers.join(', ')}]` : '';
+            const source = item.sourceName ? ` (${item.sourceName})` : '';
+            return `⭐ ${idx + 1}. ${date}${source}${tickers}\n   ${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}`;
+        }).join('\n\n');
+        await ctx.reply(`⭐ Bookmarks (${starred.length}):\n\n${display}`);
+        return;
+    }
+
+    // "Star" — star the most recent research item
+    if (text.toLowerCase() === 'star' || text.toLowerCase() === '⭐') {
+        const starred = researchService.starLatest(userId);
+        if (starred) {
+            await ctx.reply(`⭐ Đã bookmark: "${starred.content.substring(0, 80)}..."`);
+        } else {
+            await ctx.reply('⚠️ Không có research nào để bookmark.');
+        }
+        return;
+    }
+
+    // "Ask: <question>" — ask AI about saved research
+    if (text.toLowerCase().startsWith('ask:')) {
+        const question = text.substring(4).trim();
+        if (!question) {
+            await ctx.reply('⚠️ Vui lòng nhập câu hỏi. Ví dụ: Ask: BTC tuần này có gì đáng chú ý?');
+            return;
+        }
+
+        if (!planService.canUse(userId, 'canSearch')) {
+            await ctx.reply('🔒 Research Q&A là tính năng Pro. Nâng cấp để sử dụng!\n\nGõ /plan để xem chi tiết.');
+            return;
+        }
+
+        await ctx.replyWithChatAction('typing');
+        const items = researchService.getItems(userId);
+        const answer = await aiService.askAboutResearch(question, items);
+        await ctx.reply(`🤖 Research AI:\n\n${answer}`);
+        return;
+    }
+
+    // "/plan" — show current plan info
+    if (text.toLowerCase() === '/plan' || text.toLowerCase() === 'my plan') {
+        const info = planService.getPlanInfo(userId);
+        await ctx.reply(info);
+        return;
+    }
+
+    // --- END RESEARCH OS COMMANDS ---
+
     // 1. Check if user wants to schedule something
     if (text.toLowerCase().includes('schedule') || text.toLowerCase().includes('meeting') || text.toLowerCase().includes('remind')) {
         const calendarData = await aiService.analyzeForCalendar(text);
@@ -202,7 +368,7 @@ bot.on('message:text', async (ctx) => {
         return;
     }
 
-    // 3. Save to Docs (Command OR Forward)
+    // 3. Save to Docs (Command OR Forward) — ENHANCED with Research OS
     // Check for "Save:" command OR if the message is Forwarded
     const isForward = (ctx.message as any).forward_date !== undefined;
     const isSaveCommand = text.toLowerCase().startsWith('save:');
@@ -215,24 +381,68 @@ bot.on('message:text', async (ctx) => {
             content = text;
         }
 
+        // --- Rate limiting for free users ---
+        const forwardCheck = planService.canForward(userId);
+        if (!forwardCheck.allowed) {
+            await ctx.reply(
+                `⚠️ Bạn đã dùng hết ${forwardCheck.limit} forwards/ngày (Free plan).\n\n` +
+                `Nâng cấp Pro để forward không giới hạn!\n` +
+                `Gõ /plan để xem chi tiết.`
+            );
+            return;
+        }
+
         const targetDocId = userService.getActiveDocId(userId) || config.googleDocId;
 
+        // --- Save to Research Service (auto-tag) ---
+        const forwardFrom = (ctx.message as any).forward_sender_name
+            || (ctx.message as any).forward_from?.first_name
+            || (ctx.message as any).forward_from_chat?.title
+            || undefined;
+
+        const researchItem = researchService.addItem(userId, content, forwardFrom);
+        planService.incrementForwardCount(userId);
+
+        // Build tag info for reply
+        const tagInfo = researchItem.tickers.length > 0
+            ? `\n🏷️ Tags: ${researchItem.tickers.join(', ')}`
+            : '';
+        const catInfo = researchItem.categories.filter(c => c !== 'general').length > 0
+            ? `\n📂 ${researchItem.categories.filter(c => c !== 'general').join(', ')}`
+            : '';
+        const sentimentEmoji = researchItem.sentiment > 0.2 ? '🟢' : researchItem.sentiment < -0.2 ? '🔴' : '🟡';
+        const sentimentInfo = researchItem.sentiment !== 0 ? `\n${sentimentEmoji} Sentiment: ${researchItem.sentiment > 0 ? '+' : ''}${researchItem.sentiment.toFixed(2)}` : '';
+
+        // --- Also save to Google Docs (existing behavior) ---
         if (targetDocId) {
             try {
                 await googleService.appendToDocs(targetDocId, `${content}`);
                 const source = isForward ? 'forwarded message' : 'content';
                 try {
                     await ctx.api.setMessageReaction(ctx.chat.id, ctx.message.message_id, [{ type: 'emoji', emoji: '❤' }]);
+                    // Send tag info as a separate quiet reply if tags were found
+                    if (tagInfo || catInfo) {
+                        await ctx.reply(`📊 Research saved!${tagInfo}${catInfo}${sentimentInfo}`);
+                    }
                 } catch (e) {
                     // Fallback if reactions are disabled or not supported
-                    await ctx.reply(`Saved ${source} to Google Docs (${targetDocId.substring(0, 10)}...).`);
+                    await ctx.reply(`✅ Saved ${source} to Google Docs${tagInfo}${catInfo}${sentimentInfo}`);
                 }
             } catch (error) {
-                await ctx.reply('Failed to save to Google Docs.');
+                // Google Docs failed, but research is still saved locally
+                await ctx.reply(`✅ Research saved locally${tagInfo}${catInfo}${sentimentInfo}\n⚠️ Google Docs sync failed.`);
             }
         } else {
-            await ctx.reply('Google Doc ID not configured. Use "Add Doc [name] [ID]" to set one up.');
+            // No Google Doc configured — still save to research
+            await ctx.reply(`✅ Research saved!${tagInfo}${catInfo}${sentimentInfo}\n💡 Tip: "Add Doc [name] [ID]" để sync với Google Docs.`);
         }
+
+        // Show remaining quota for free users
+        const remaining = planService.canForward(userId);
+        if (remaining.limit !== -1 && remaining.remaining <= 3 && remaining.remaining > 0) {
+            await ctx.reply(`⚡ Còn ${remaining.remaining}/${remaining.limit} forwards hôm nay.`);
+        }
+
         return;
     }
 
@@ -259,6 +469,16 @@ bot.on('message:photo', async (ctx) => {
 
     await ctx.replyWithChatAction('upload_photo');
 
+    // Rate limiting
+    const forwardCheck = planService.canForward(userId);
+    if (!forwardCheck.allowed) {
+        await ctx.reply(
+            `⚠️ Bạn đã dùng hết ${forwardCheck.limit} forwards/ngày (Free plan).\n` +
+            `Nâng cấp Pro để forward không giới hạn!`
+        );
+        return;
+    }
+
     try {
         const file = await ctx.api.getFile(photo.file_id);
         if (file.file_path) {
@@ -279,6 +499,16 @@ bot.on('message:photo', async (ctx) => {
 
                     await googleService.insertImageToDocs(targetDocId, fileUrl, cleanCaption);
 
+                    // Also save caption to research if it has content
+                    if (cleanCaption) {
+                        const forwardFrom = (ctx.message as any).forward_sender_name
+                            || (ctx.message as any).forward_from?.first_name
+                            || (ctx.message as any).forward_from_chat?.title
+                            || undefined;
+                        researchService.addItem(userId, `[Image] ${cleanCaption}`, forwardFrom);
+                    }
+                    planService.incrementForwardCount(userId);
+
                     try {
                         await ctx.api.setMessageReaction(ctx.chat.id, ctx.message.message_id, [{ type: 'emoji', emoji: '❤' }]);
                     } catch (e) {
@@ -298,9 +528,42 @@ bot.on('message:photo', async (ctx) => {
     }
 });
 
+// --- DAILY DIGEST CRON JOB ---
+// Runs at 08:00 every day (Asia/Ho_Chi_Minh timezone)
+cron.schedule('0 8 * * *', async () => {
+    console.log('[Digest] Running daily digest cron...');
+
+    // Get all users who have digest enabled (Pro/Premium)
+    const eligibleUsers = planService.getDigestEligibleUsers();
+    // Also include users who have research items (they might all be free during early access)
+    const allResearchUsers = researchService.getAllUserIds();
+    const usersToDigest = [...new Set([...eligibleUsers, ...allResearchUsers])];
+
+    for (const userId of usersToDigest) {
+        try {
+            const digestData = researchService.getDigestData(userId, 24);
+            if (digestData.totalItems === 0) continue; // Skip users with no new research
+
+            const digest = await aiService.generateDigest(digestData);
+            await bot.api.sendMessage(userId, `📬 Daily Research Digest\n\n${digest}`);
+            console.log(`[Digest] Sent digest to user ${userId} (${digestData.totalItems} items)`);
+        } catch (error) {
+            console.error(`[Digest] Error sending digest to user ${userId}:`, error);
+        }
+    }
+
+    // Also check for expired plans
+    planService.checkExpiredPlans();
+
+    console.log('[Digest] Daily digest cron completed.');
+}, {
+    timezone: 'Asia/Ho_Chi_Minh',
+});
+
 // Start the bot
 bot.start({
     onStart: (botInfo) => {
         console.log(`Bot @${botInfo.username} started!`);
+        console.log('Research OS features enabled: auto-tag, search, digest, star, stats');
     },
 });

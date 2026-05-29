@@ -135,4 +135,109 @@ FORMAT TRẢ LỜI:
             return null;
         }
     }
+
+    // --- Research OS: AI-Powered Methods ---
+
+    /**
+     * Generate a daily digest summary from research items.
+     */
+    async generateDigest(digestData: {
+        totalItems: number;
+        topTickers: { ticker: string; count: number; items: { content: string; sentiment: number; sourceName?: string }[] }[];
+        uncategorized: { content: string }[];
+    }): Promise<string> {
+        if (digestData.totalItems === 0) {
+            return '📭 Không có research mới trong 24 giờ qua.';
+        }
+
+        // Build context for AI
+        const tickerSummaries = digestData.topTickers.slice(0, 5).map(t => {
+            const snippets = t.items.slice(0, 5).map(i => {
+                const source = i.sourceName ? `[${i.sourceName}]` : '';
+                return `${source} ${i.content.substring(0, 200)}`;
+            }).join('\n');
+            const avgSentiment = t.items.reduce((sum, i) => sum + i.sentiment, 0) / t.items.length;
+            return `--- ${t.ticker} (${t.count} mentions, sentiment: ${avgSentiment.toFixed(2)}) ---\n${snippets}`;
+        }).join('\n\n');
+
+        const prompt = `Tạo Daily Research Digest từ data sau. Format ngắn gọn, dễ đọc trên Telegram (không dùng ** hay #).
+
+Tổng: ${digestData.totalItems} items
+
+${tickerSummaries}
+
+${digestData.uncategorized.length > 0 ? `\nKhác (${digestData.uncategorized.length} items): ${digestData.uncategorized.slice(0, 3).map(i => i.content.substring(0, 100)).join('; ')}` : ''}
+
+Format yêu cầu:
+1. Header với emoji và ngày
+2. Top tickers với số mentions
+3. Mỗi ticker: 2-3 bullet key insights + sentiment emoji (🟢/🟡/🔴)
+4. Action items hoặc things to watch (nếu có)
+5. Giữ ngắn, tối đa 400 từ`;
+
+        try {
+            const completion = await this.client.chat.completions.create({
+                model: config.fastModel,
+                messages: [
+                    { role: 'system', content: 'Bạn là research analyst assistant. Tạo digest ngắn gọn, insight-driven, không dùng markdown formatting (* # _).' },
+                    { role: 'user', content: prompt },
+                ],
+            });
+
+            let text = completion.choices[0]?.message?.content || 'Không thể tạo digest.';
+            // Clean markdown
+            text = text.replace(/\*/g, '');
+            text = text.replace(/(^|\n)#+\s/g, '$1');
+            text = text.replace(/_/g, '\\_');
+            return text;
+        } catch (error) {
+            console.error('AI Digest Error:', error);
+            return '⚠️ Lỗi khi tạo digest. Vui lòng thử lại sau.';
+        }
+    }
+
+    /**
+     * Answer a question about the user's saved research.
+     */
+    async askAboutResearch(question: string, researchItems: { content: string; tickers: string[]; sourceName?: string; createdAt: string }[]): Promise<string> {
+        if (researchItems.length === 0) {
+            return '📭 Bạn chưa lưu research nào. Forward messages vào bot để bắt đầu!';
+        }
+
+        // Build context from recent research (limit to avoid token overflow)
+        const context = researchItems.slice(-30).map((item, idx) => {
+            const date = new Date(item.createdAt).toLocaleDateString('vi-VN');
+            const source = item.sourceName ? `[${item.sourceName}]` : '';
+            const tickers = item.tickers.length > 0 ? `(${item.tickers.join(', ')})` : '';
+            return `${idx + 1}. ${date} ${source} ${tickers}: ${item.content.substring(0, 300)}`;
+        }).join('\n');
+
+        const prompt = `Dựa trên research data đã lưu của user, trả lời câu hỏi sau.
+
+RESEARCH DATA (${researchItems.length} items, showing recent):
+${context}
+
+CÂU HỎI: ${question}
+
+Trả lời ngắn gọn, cite source nếu có. Không dùng markdown formatting.`;
+
+        try {
+            const completion = await this.client.chat.completions.create({
+                model: config.chatModel,
+                messages: [
+                    { role: 'system', content: 'Bạn là research assistant. Trả lời dựa trên data user đã lưu. Ngắn gọn, chính xác, không dùng * # _.' },
+                    { role: 'user', content: prompt },
+                ],
+            });
+
+            let text = completion.choices[0]?.message?.content || 'Không thể trả lời.';
+            text = text.replace(/\*/g, '');
+            text = text.replace(/(^|\n)#+\s/g, '$1');
+            text = text.replace(/_/g, '\\_');
+            return text;
+        } catch (error) {
+            console.error('AI Research Q&A Error:', error);
+            return '⚠️ Lỗi khi phân tích research. Vui lòng thử lại sau.';
+        }
+    }
 }
