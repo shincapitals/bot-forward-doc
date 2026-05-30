@@ -2,6 +2,21 @@
 
 > **Brand: EdgeBook** — *"capture your edge."* Trading research OS sống trong Telegram.
 
+## 0. Trạng thái hiện tại *(cập nhật 2026-05-30)*
+
+| Hạng mục | Trạng thái |
+|---|---|
+| **Brand** | ✅ Rebrand "Bot Forward Docs" → **EdgeBook** (repo `shincapitals/edge-book`, npm `edgebook`, bot `@edgebook_bot`) |
+| **Tầng 1 — Capture Engine** | ✅ Done (forward → Docs, AI chat, Calendar, To-Do, Shopee) |
+| **Tầng 2 — Research Hub** | ✅ Done Sprint 1 (auto-tag, search, sentiment, daily digest, Ask AI) |
+| **Tầng 3 — Trade Journal MVP** | ✅ Done Sprint 3 (log/close/PnL/stats — Pro) |
+| **Hạ tầng AI** | ✅ Vertex-Key: chat `aws/claude-sonnet-4-6-medium-thinking`, fast `aws/claude-haiku-4-5` |
+
+**Đang chờ / TODO vận hành:** `service_account.json` (Google APIs), LemonSqueezy keys (bật `/upgrade`).
+**Sprint kế tiếp (ứng viên):** Premium Trade analytics + research-to-trade link → migrate JSON→DB → Phase 4 (Team & API).
+
+---
+
 ## 1. Tại sao "Research OS" là hướng đi đúng?
 
 ### Vấn đề thực tế của trader/investor
