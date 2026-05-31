@@ -147,7 +147,7 @@ Reacts with ❤ emoji on success (falls back to text reply if reactions aren't s
 - **PlanService** *(new)*: File-based persistence to `data/plans.json`. Manages subscription tiers (free/pro/premium), daily forward rate limiting, feature gating, and plan expiration.
 - **UserService**: File-based persistence to `data/users.json`. Supports multi-doc aliases (e.g., `work` → `<docId>`). Auto-sets first added doc as active.
 - **TodoService**: File-based persistence to `data/todos.json`. Supports completion by index (1-based) or keyword search.
-- **TradeService** *(new)*: File-based persistence to `data/trades.json`. Manages the Trade Journal — open/close trades, auto-computes PnL% (price- or percent-based, direction-aware), and aggregates stats (win rate, total PnL, avg planned RR, best/worst). Pro-gated via `canTrade`.
+- **TradeService** *(new)*: File-based persistence to `data/trades.json`. Manages the Trade Journal — open/close trades, auto-computes PnL% (price- or percent-based, direction-aware), and aggregates stats (win rate, total PnL, avg planned RR, best/worst). Pro-gated via `canTrade`. Also supports **research-to-trade link** (`linkResearch`/`getTradeById`, `linkedResearch: string[]` on each trade) — Premium-gated via `canLinkResearch`. On `Close:`, Premium users get an inline keyboard of recent research matching the ticker (callback `linkres:<tradeId>:<researchId>`); the `Trades` list shows a 🔗N tag for trades with links.
 
 ### Subscription Tiers
 
@@ -157,6 +157,7 @@ Reacts with ❤ emoji on success (falls back to text reply if reactions aren't s
 | Search & Tag | ❌ | ✅ | ✅ |
 | Daily Digest | ❌ | ✅ | ✅ |
 | Trade Journal | ❌ | ✅ | ✅ |
+| Research↔Trade link | ❌ | ❌ | ✅ |
 | Star/Bookmark | ✅ | ✅ | ✅ |
 | Sentiment | ❌ | ❌ | ✅ |
 | Export | ❌ | ❌ | ✅ |
@@ -181,10 +182,10 @@ All data is stored as JSON files in `data/`. Read on service init, written synch
 
 ### Git Workflow
 
-**Dự án solo — không cần tạo Pull Request.**
+**Dự án solo — KHÔNG tạo Pull Request. Không gợi ý tạo PR.**
 - Commit thẳng lên `main` cho các thay đổi nhỏ.
-- Dùng feature branch (e.g., `sprint-2a-payment`) khi làm sprint lớn, sau đó merge trực tiếp vào `main` sau khi build pass.
-- Không cần code review hay PR approval.
+- Dùng feature branch (e.g., `sprint-2a-payment`) khi làm sprint lớn, sau đó **merge trực tiếp** vào `main` sau khi build pass — không qua PR.
+- Không cần code review hay PR approval. Không chạy `gh pr create`.
 
 ### Phân vai Claude Code / Codex
 
