@@ -13,7 +13,7 @@
 | ------------ | --------------------------------------------- |
 | Runtime      | Node.js + TypeScript (ES2022, CommonJS)       |
 | Bot Framework| grammY v1.20                                  |
-| AI           | Vertex-Key.com (`openai` SDK) — model `aws/claude-haiku-4-5` via OpenAI-compatible API |
+| AI           | Vertex-Key.com (`openai` SDK) via OpenAI-compatible API — chat `AI_CHAT_MODEL` (default `aws/claude-sonnet-4-6`), fast `AI_FAST_MODEL` (default `aws/claude-haiku-4-5`) |
 | Google APIs  | `googleapis` (Calendar v3, Drive v3, Docs v1) |
 | PDF          | `pdfkit` — trade report export (ASCII/English text; built-in fonts can't render VN diacritics) |
 | Auth         | Google Service Account (`service_account.json`) |
@@ -136,7 +136,7 @@ All logic is in `bot.on('message:text')` and `bot.on('message:photo')` handlers 
    - `Export` / `Export PDF` (Premium) — generates a PDF trade report (summary, monthly bar chart, ticker/direction breakdown, trade log) via `ReportService` and sends it as a Telegram document
 5. **Calendar**: Messages containing "schedule", "meeting", or "remind" → AI extracts event data → Calendar API
 6. **Personalization**: `Call me <name>`, `My name is <name>`, `My job is <job>`, `Remember: <note>`
-7. **Save to Docs + Research**: `Save: <content>` command OR forwarded messages → auto-tags tickers, classifies category, scores sentiment, saves to Research DB + appends to active Google Doc
+7. **Save to Docs + Research**: `Save: <content>` command OR forwarded messages → auto-tags tickers, classifies category, scores sentiment, saves to Research DB + appends to active Google Doc. For Premium users, also runs `ThesisService.findConflicts()` and sends a conflict alert if the new item contradicts an active thesis.
 8. **Default**: Falls through to AI chat with per-user session
 
 ### Photo Handler
@@ -238,7 +238,7 @@ Dự án dùng hai AI agent với vai trò tách biệt:
 3. Ensure Service Account has permissions on the target resource.
 
 ### Changing the AI model
-- Model is configured via `AI_MODEL` env var (default: `aws/claude-haiku-4-5`).
+- Two models, both set in `.env`: `AI_CHAT_MODEL` (smart chat / digests / Q&A, default `aws/claude-sonnet-4-6`) and `AI_FAST_MODEL` (fast extraction tasks, default `aws/claude-haiku-4-5`). Read in `config.ts` as `chatModel` / `fastModel`.
 - Uses Vertex-Key.com prefix format: `aws/claude-opus-4-7`, `aws/claude-sonnet-4-6`, `aws/qwen3-codex`, etc.
 - Change in `.env` — no code changes needed.
 

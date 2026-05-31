@@ -16,7 +16,16 @@
 | **Hạ tầng AI** | ✅ Vertex-Key: chat `aws/claude-sonnet-4-6-medium-thinking`, fast `aws/claude-haiku-4-5` |
 | **Local test** | ✅ Bot `@edgebook_bot` chạy được (`npm start`), Trade/Research/Analytics/Export PDF test OK không cần Google. User test set Premium thủ công qua `data/plans.json` |
 
-> **Phase 3 (Trade Journal & Portfolio) hoàn tất 100%.**
+> **Tầng 2 (Research Hub / Phase 2) và Tầng 3 (Trade Journal / Phase 3) đều hoàn tất 100%.** Mọi feature monetizable Free/Pro/Premium đã build xong. Việc còn lại là hạ tầng (DB), mở rộng (Phase 4 Team & API), và vận hành (secrets/payment).
+
+### Roadmap còn lại
+| Hạng mục | Loại | Ưu tiên |
+|---|---|---|
+| Migrate JSON → DB (PostgreSQL/Supabase) | Hạ tầng | 🔴 Cao — gỡ giới hạn "1 instance", nền tảng cho Phase 4 |
+| Phase 4 — Team workspace, role-based, Webhook/API, Discord/X bridge | Feature lớn | 🟡 Sau DB |
+| Tầng 3 vision — multi-source aggregation, portfolio/PnL linkage, web dashboard (Next.js) | Feature lớn | 🟢 Dài hạn |
+| Go-to-Market (§6 — seed groups, content, KOL) | Tăng trưởng | 🟡 Song song |
+| `service_account.json`, LemonSqueezy keys, `.env.example` | Vận hành | 🔴 Blocker để chạy thật |
 
 **Đang chờ / TODO vận hành:**
 - `service_account.json` (Google APIs — Save Docs/Calendar/upload ảnh). **Gitignored** → không có khi `git pull`; phải copy thủ công sang từng máy (USB / password manager), KHÔNG commit.
