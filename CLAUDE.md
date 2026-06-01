@@ -216,7 +216,9 @@ Dự án dùng hai AI agent với vai trò tách biệt:
 
 ### Other Conventions
 
-- **Language**: Bot responses mix English and Vietnamese (error messages in Vietnamese in `ai.service.ts`).
+- **Language**: Bot responses are Vietnamese-first (AI chat replies follow the user's language). `/start` & `/help` are Vietnamese.
+- **Reply formatting**: In user-facing replies avoid em dashes (`—`) and don't wrap command tokens in double quotes (e.g. write `Gõ Theses`, not `Gõ "Theses"`). Quotes are kept only around dynamic user values (alias, task, keyword, ticker) for clarity.
+- **Command menu**: Slash commands shown in Telegram's "/" menu are registered on startup via `bot.api.setMyCommands(BOT_COMMANDS)` (in `index.ts` `bot.start` `onStart`). The list (`/start`, `/help`, `/plan`, `/upgrade`) is separate from the in-chat `/help` text — update both when adding a slash command. Note `/plan` is routed inside the `message:text` handler (not via `bot.command`), yet its menu entry still works because Telegram just sends the literal text `/plan`.
 - **Markdown handling**: AI responses have `*`, `#`, and `_` stripped/escaped before sending to Telegram (parsed as Markdown mode).
 - **No tests**: No automated test suite. Only manual test scripts in `src/test-*.ts`.
 - **Gitignore**: `node_modules/`, `dist/`, `.env`, `service_account.json`, and `data/` are gitignored.
@@ -228,6 +230,7 @@ Dự án dùng hai AI agent với vai trò tách biệt:
 1. Add handler in `src/index.ts` — place it BEFORE the default AI chat fallback.
 2. Use regex matching pattern consistent with existing commands.
 3. Update the `/help` command text to document it.
+4. If it's a slash command worth surfacing, add it to `BOT_COMMANDS` (the `setMyCommands` list) too.
 
 ### Adding a new Google API integration
 1. Add scope in `GoogleService` constructor's `scopes` array.

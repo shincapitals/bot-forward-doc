@@ -18,6 +18,9 @@
 | **Bugfix forward** | ✅ 2026-06-01 — sửa nhận diện forward theo `forward_origin` (Bot API 7.0 đã bỏ `forward_date`/`forward_from`); trước đó forward ảnh → bot im lặng, forward text → không lưu research |
 | **Current Doc link** | ✅ 2026-06-01 — lệnh `Current Doc` trả link Google Docs clickable + alias (không chỉ ID) |
 | **Admin accounts** | ✅ 2026-06-01 — `ADMIN_USER_IDS` trong `.env`: các Telegram ID là admin luôn được coi là Premium (mọi gate pass, unlimited forward, luôn digest-eligible). Thay cho việc set tier thủ công trong `data/plans.json` |
+| **Command menu** | ✅ 2026-06-01 — đăng ký menu "/" qua `setMyCommands` lúc khởi động (`/start`, `/help`, `/plan`, `/upgrade`) |
+| **UX text** | ✅ 2026-06-01 — Việt hoá + làm gọn `/start` (kèm highlight tính năng) & `/help`; dọn định dạng reply (bỏ `—` và ngoặc kép quanh token lệnh, giữ ngoặc quanh giá trị user) |
+| **Gỡ Shopee** | ✅ 2026-06-01 — xoá hẳn Shopee tracker (service + handlers + menu + docs) do dự án tập trung vào trading research/OS |
 
 > **Tầng 2 (Research Hub / Phase 2) và Tầng 3 (Trade Journal / Phase 3) đều hoàn tất 100%.** Mọi feature monetizable Free/Pro/Premium đã build xong. Việc còn lại là hạ tầng (DB), mở rộng (Phase 4 Team & API), và vận hành (secrets/payment).
 
