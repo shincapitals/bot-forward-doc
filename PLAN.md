@@ -25,11 +25,11 @@
 | Phase 4 — Team workspace, role-based, Webhook/API, Discord/X bridge | Feature lớn | 🟡 Sau DB |
 | Tầng 3 vision — multi-source aggregation, portfolio/PnL linkage, web dashboard (Next.js) | Feature lớn | 🟢 Dài hạn |
 | Go-to-Market (§6 — seed groups, content, KOL) | Tăng trưởng | 🟡 Song song |
-| `service_account.json`, LemonSqueezy keys, `.env.example` | Vận hành | 🔴 Blocker để chạy thật |
+| `service_account.json`, LemonSqueezy keys | Vận hành | 🔴 Blocker để chạy thật (`.env.example` ✅ đã có) |
 
 **Đang chờ / TODO vận hành:**
 - `service_account.json` (Google APIs — Save Docs/Calendar/upload ảnh). **Gitignored** → không có khi `git pull`; phải copy thủ công sang từng máy (USB / password manager), KHÔNG commit.
-- `.env` cũng gitignored — copy thủ công. *(TODO: thêm `.env.example` để document tên biến.)*
+- `.env` cũng gitignored — copy thủ công. ✅ Đã có `.env.example` document đủ 14 biến + default; chỉ cần `cp .env.example .env` rồi điền giá trị.
 - LemonSqueezy keys (bật `/upgrade`). Khi chưa có → test Premium bằng cách set tier trong `data/plans.json`.
 - ⚠️ Chỉ chạy **1 instance** (long-poll Telegram + JSON file-based, 2 instance sẽ 409 Conflict & hỏng data).
 
